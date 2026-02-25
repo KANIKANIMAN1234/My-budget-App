@@ -28,6 +28,12 @@
     .filter-box { background: #f9f9f9; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
     .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .total-display { font-size: 18px; font-weight: bold; text-align: center; color: #333; margin: 10px 0; border-bottom: 2px solid var(--line-green); padding-bottom: 5px; }
+    .payment-breakdown { font-size: 12px; color: #666; text-align: center; margin-bottom: 10px; }
+    .payment-breakdown span { margin: 0 8px; }
+    .payment-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 4px; }
+    .payment-badge.credit { background: #e3f2fd; color: #1976d2; }
+    .payment-badge.paypay { background: #fff3e0; color: #e65100; }
+    .payment-badge.cash { background: #f5f5f5; color: #616161; }
 
     /* 写真プレビュー */
     .photo-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
@@ -59,12 +65,13 @@
     }
     .image-link-btn:active { background: #e0e0e0; }
 
-    /* 金額＋クレカチェック */
+    /* 金額＋支払方法チェック */
     .amount-row { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
     .amount-row input { flex: 1; margin-bottom: 0; }
-    .credit-check { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; color: #555; cursor: pointer; }
-    .credit-check input { width: auto; margin: 0; cursor: pointer; }
-    .amount-row.hidden .credit-check { display: none; }
+    .payment-checks { display: flex; gap: 12px; flex-wrap: wrap; }
+    .payment-check { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; color: #555; cursor: pointer; }
+    .payment-check input { width: auto; margin: 0; cursor: pointer; }
+    .amount-row.hidden .payment-checks { display: none; }
 
     /* 送信ボタン */
     #submitBtn { background: var(--line-green); color: white; border: none; width: 100%; padding: 15px; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
@@ -94,7 +101,10 @@
     <label>金額</label>
     <div id="amountRow" class="amount-row">
       <input type="number" id="amount" placeholder="金額" inputmode="numeric">
-      <label class="credit-check"><input type="checkbox" id="creditCard">クレカ</label>
+      <div class="payment-checks">
+        <label class="payment-check"><input type="checkbox" id="creditCard">クレカ</label>
+        <label class="payment-check"><input type="checkbox" id="paypay">PayPay</label>
+      </div>
     </div>
     <label>内容 / 支払先</label><input type="text" id="shop" placeholder="例: 給与、スーパー">
     <label>日付</label><input type="date" id="date">
@@ -115,8 +125,10 @@
       <select id="filterCategory" onchange="applyFilters()"><option value="">全分類</option></select>
       <select id="filterYear" onchange="applyFilters()"><option value="">年</option></select>
       <select id="filterMonth" onchange="applyFilters()"><option value="">月</option></select>
+      <select id="filterPayment" onchange="applyFilters()"><option value="">支払方法</option></select>
     </div></div>
     <div id="listTotal" class="total-display">収支合計: ¥0</div>
+    <div id="listPaymentBreakdown" class="payment-breakdown"></div>
     <div id="listContainer"></div>
   </div>
 
@@ -227,6 +239,10 @@
       s.innerHTML = '<option value="">全分類</option>';
       allCats.forEach(c => s.add(new Option(c, c)));
     });
+
+    // 支払方法選択肢（履歴タブ用）
+    const paySel = document.getElementById('filterPayment');
+    paySel.innerHTML = '<option value="">全て</option><option value="creditCard">クレカ</option><option value="paypay">PayPay</option><option value="cash">現金</option>';
   }
 
   /**
@@ -238,6 +254,7 @@
     document.getElementById('typeIncome').classList.toggle('active', t === '入金');
     document.getElementById('amountRow').classList.toggle('hidden', t !== '出金');
     document.getElementById('creditCard').checked = false;
+    document.getElementById('paypay').checked = false;
     updateCategoryOptions();
   }
 
@@ -268,13 +285,20 @@
   }
 
   function applyFilters() {
-    const u = document.getElementById('filterUser').value; // lineId
+    const u = document.getElementById('filterUser').value;
     const c = document.getElementById('filterCategory').value;
     const y = document.getElementById('filterYear').value;
     const m = document.getElementById('filterMonth').value;
+    const payment = document.getElementById('filterPayment').value;
     const filtered = allData.filter(d => {
       const dt = new Date(d.date);
-      return (!u || d.lineId === u) && (!c || d.category === c) && (!y || dt.getFullYear() == y) && (!m || (dt.getMonth()+1) == m);
+      const matchBase = (!u || d.lineId === u) && (!c || d.category === c) && (!y || dt.getFullYear() == y) && (!m || (dt.getMonth()+1) == m);
+      if (!payment) return matchBase;
+      if (d.type === "入金") return false; // 支払方法フィルタ時は出金のみ
+      if (payment === "creditCard") return matchBase && d.creditCard === true;
+      if (payment === "paypay") return matchBase && d.paypay === true;
+      if (payment === "cash") return matchBase && !d.creditCard && !d.paypay;
+      return matchBase;
     });
     renderList(filtered);
   }
@@ -282,21 +306,33 @@
   function renderList(data) {
     const container = document.getElementById('listContainer');
     let total = 0;
+    let sumCredit = 0, sumPaypay = 0, sumCash = 0;
     container.innerHTML = "";
     data.forEach(item => {
       const isInc = item.type === "入金";
       total += isInc ? item.amount : -item.amount;
+      if (!isInc) {
+        if (item.creditCard) sumCredit += item.amount;
+        else if (item.paypay) sumPaypay += item.amount;
+        else sumCash += item.amount;
+      }
       const div = document.createElement('div');
       div.className = 'list-item';
       
-      // 画像ボタンの生成 (別タブで開く方式)
-      const imageButtons = item.imageUrls.map((url, index) => {
+      const imageButtons = (item.imageUrls || []).map((url, index) => {
         return `<button class="image-link-btn" onclick="window.open('${url}', '_blank')">📷 写真${index+1}</button>`;
       }).join('');
 
+      let badge = "";
+      if (!isInc) {
+        if (item.creditCard) badge = '<span class="payment-badge credit">クレカ</span>';
+        else if (item.paypay) badge = '<span class="payment-badge paypay">PayPay</span>';
+        else badge = '<span class="payment-badge cash">現金</span>';
+      }
+
       div.innerHTML = `
         <div>
-          <div class="item-main">${item.shop} [${item.category}]</div>
+          <div class="item-main">${item.shop} [${item.category}]${badge}</div>
           <div style="font-size:11px; color:#999;">${item.date} (${item.userName})</div>
         </div>
         <div style="text-align:right">
@@ -308,6 +344,12 @@
       container.appendChild(div);
     });
     document.getElementById('listTotal').innerText = `収支合計: ¥${total.toLocaleString()}`;
+    const breakdown = document.getElementById('listPaymentBreakdown');
+    if (sumCredit || sumPaypay || sumCash) {
+      breakdown.innerHTML = `<span>クレカ ¥${sumCredit.toLocaleString()}</span><span>PayPay ¥${sumPaypay.toLocaleString()}</span><span>現金 ¥${sumCash.toLocaleString()}</span>`;
+    } else {
+      breakdown.innerHTML = "";
+    }
   }
 
   /**
@@ -438,7 +480,8 @@
         lineId: p.userId, userName: p.displayName, type: currentType, amount: Number(amt),
         category: document.getElementById('category').value, shop: document.getElementById('shop').value || "未設定",
         date: document.getElementById('date').value, imageBlobs: imageBlobs,
-        creditCard: currentType === "出金" && document.getElementById('creditCard').checked
+        creditCard: currentType === "出金" && document.getElementById('creditCard').checked,
+        paypay: currentType === "出金" && document.getElementById('paypay').checked
       });
       if (res.status === "success") { alert("完了！"); location.reload(); }
       else { throw new Error("APIエラー"); }

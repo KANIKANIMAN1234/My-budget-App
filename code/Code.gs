@@ -50,10 +50,11 @@ function uploadData(payload) {
   }
   const fileUrls = urlList.length > 0 ? urlList.join(",") : "画像なし";
 
-  // クレジットカードフラグ (出金時のみ、チェック時は"○"、未チェックは空)
+  // クレジットカード・PayPayフラグ (出金時のみ、チェック時は"○"、未チェックは空)
   const creditCard = (payload.type === "出金" && payload.creditCard === true) ? "○" : "";
+  const paypay = (payload.type === "出金" && payload.paypay === true) ? "○" : "";
 
-  // スプレッドシートへの書き込み (I列:収支タイプ / J列:クレカ)
+  // スプレッドシートへの書き込み (I列:収支タイプ / J列:クレカ / K列:PayPay)
   dataSheet.appendRow([
     new Date(),
     payload.date,
@@ -64,7 +65,8 @@ function uploadData(payload) {
     fileUrls,
     payload.lineId,
     payload.type,     // I列: 出金 or 入金
-    creditCard        // J列: クレジットカード支払いフラグ (○ or 空)
+    creditCard,       // J列: クレジットカード支払いフラグ (○ or 空)
+    paypay            // K列: PayPay支払いフラグ (○ or 空)
   ]);
   return "Success";
 }
@@ -85,7 +87,8 @@ function getListData() {
     imageUrls: row[6] ? row[6].split(",") : [],
     lineId: row[7] || "",
     type: row[8] || "出金",
-    creditCard: row[9] === "○"  // J列: クレジットカードフラグ
+    creditCard: row[9] === "○",  // J列: クレジットカードフラグ
+    paypay: row[10] === "○"      // K列: PayPayフラグ
   }));
 }
 

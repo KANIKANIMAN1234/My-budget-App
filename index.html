@@ -59,6 +59,13 @@
     }
     .image-link-btn:active { background: #e0e0e0; }
 
+    /* 金額＋クレカチェック */
+    .amount-row { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+    .amount-row input { flex: 1; margin-bottom: 0; }
+    .credit-check { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; color: #555; cursor: pointer; }
+    .credit-check input { width: auto; margin: 0; cursor: pointer; }
+    .amount-row.hidden .credit-check { display: none; }
+
     /* 送信ボタン */
     #submitBtn { background: var(--line-green); color: white; border: none; width: 100%; padding: 15px; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
     #submitBtn:disabled { background: #ccc; }
@@ -84,7 +91,11 @@
       <div id="typeIncome" class="type-btn income" onclick="setType('入金')">入金</div>
     </div>
     <label>カテゴリ</label><select id="category"></select>
-    <label>金額</label><input type="number" id="amount" placeholder="金額" inputmode="numeric">
+    <label>金額</label>
+    <div id="amountRow" class="amount-row">
+      <input type="number" id="amount" placeholder="金額" inputmode="numeric">
+      <label class="credit-check"><input type="checkbox" id="creditCard">クレカ</label>
+    </div>
     <label>内容 / 支払先</label><input type="text" id="shop" placeholder="例: 給与、スーパー">
     <label>日付</label><input type="date" id="date">
     <label>写真 (最大3枚)</label>
@@ -144,8 +155,8 @@
   let myBarChart = null;
   let userList = []; // ユーザーリスト（LINE IDと名前のマッピング用）
   const categories = {
-    "出金": ["電気代", "水道代", "ガス代", "CATV代", "外食", "通信費", "ガソリン代", "レンタカー代", "高速代", "交通費", "冠婚葬祭", "実家修繕", "旅費交通費", "宿泊代", "飲食代", "嗜好品", "miki", "YOU", "POPMART", "DMM", "TIKTOK", "経費川越", "経費南千住", "経費沖縄", "経費泉M", "書籍", "AIサブスク", "他"],
-    "入金": ["給与", "賞与", "副業", "還付金", "お小遣い", "年金", "冠婚葬祭", "AI開発", "川越家賃", "南千住家賃", "目黒家賃", "沖縄Airbnb", "他"]
+    "出金": ["埼玉電気代", "埼玉水道代", "埼玉ガス代", "鶴川電気代", "鶴川水道代", "鶴川ガス代", "鶴川CATV代", "南千住電気代", "南千住水道代", "南千住ガス代", "南千住ネット代", "沖縄電気代", "沖縄水道代", "沖縄ガス代", "外食（家族）", "外食（一般）", "外食（不動産）", "外食（ON&OFF）", "外食（AI）", "外食（M＆M）", "食費", "通信費（Docoo）", "通信費（au）", "通信費（楽天）", "通信費（SBTM）", "通信費（Nuro）", "車（駐車場代）", "車（ガソリン代）", "車（レンタカー代）", "車（高速代）", "保険代（火災）", "保険（生命）", "冠婚葬祭", "実家修繕", "お土産代", "交通費（旅費）", "交通費（一般）", "宿泊費", "医療代", "理容費", "嗜好品", "養育費", "miki", "YOU", "POPMART", "DMM", "TIKTOK", "経費（川越）", "経費（南千住）", "経費（沖縄）", "経費（泉）", "書籍", "AIサブスク", "他"],
+    "入金": ["給与", "賞与", "AI副業", "還付金", "お小遣い", "年金", "冠婚葬祭", "AI開発", "川越家賃", "南千住家賃", "目黒家賃", "沖縄Airbnb", "他"]
   };
 
   /**
@@ -170,6 +181,7 @@
       console.error("LIFF初期化エラー:", err);
     });
     document.getElementById('date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('amountRow').classList.remove('hidden'); // 出金がデフォルトのため表示
   };
 
   /**
@@ -224,6 +236,8 @@
     currentType = t;
     document.getElementById('typeExpense').classList.toggle('active', t === '出金');
     document.getElementById('typeIncome').classList.toggle('active', t === '入金');
+    document.getElementById('amountRow').classList.toggle('hidden', t !== '出金');
+    document.getElementById('creditCard').checked = false;
     updateCategoryOptions();
   }
 
@@ -423,7 +437,8 @@
       const res = await callGas("upload", {
         lineId: p.userId, userName: p.displayName, type: currentType, amount: Number(amt),
         category: document.getElementById('category').value, shop: document.getElementById('shop').value || "未設定",
-        date: document.getElementById('date').value, imageBlobs: imageBlobs
+        date: document.getElementById('date').value, imageBlobs: imageBlobs,
+        creditCard: currentType === "出金" && document.getElementById('creditCard').checked
       });
       if (res.status === "success") { alert("完了！"); location.reload(); }
       else { throw new Error("APIエラー"); }

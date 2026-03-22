@@ -123,8 +123,10 @@
     <div class="filter-box"><div class="filter-grid">
       <select id="filterUser" onchange="applyFilters()"><option value="">全員</option></select>
       <select id="filterCategory" onchange="applyFilters()"><option value="">全分類</option></select>
+      <select id="filterCommonFee" onchange="applyFilters()"><option value="">共通費まとめ（指定なし）</option></select>
       <select id="filterYear" onchange="applyFilters()"><option value="">年</option></select>
       <select id="filterMonth" onchange="applyFilters()"><option value="">月</option></select>
+      <select id="filterPeriod23" onchange="applyFilters()"><option value="">締め期間（23日〜翌22日）</option></select>
       <select id="filterPayment" onchange="applyFilters()"><option value="">支払方法</option></select>
     </div></div>
     <div id="listTotal" class="total-display">収支合計: ¥0</div>
@@ -167,8 +169,16 @@
   let myBarChart = null;
   let userList = []; // ユーザーリスト（LINE IDと名前のマッピング用）
   const categories = {
-    "出金": ["埼玉電気代", "埼玉水道代", "埼玉ガス代", "鶴川電気代", "鶴川水道代", "鶴川ガス代", "鶴川CATV代", "南千住電気代", "南千住水道代", "南千住ガス代", "南千住ネット代", "沖縄電気代", "沖縄水道代", "沖縄ガス代", "外食（家族）", "外食（一般）", "外食（不動産）", "外食（ON&OFF）", "外食（AI）", "外食（M＆M）", "食費", "食費（ラーメン）", "通信費（Docoo）", "通信費（au）", "通信費（楽天）", "通信費（SBTM）", "通信費（Nuro）", "車（駐車場代）", "車（ガソリン代）", "車（レンタカー代）", "車（高速代）", "保険代（火災）", "保険（生命）", "冠婚葬祭", "実家修繕", "お土産代", "交通費（旅費）", "交通費（一般）", "SUICAチャージ", "宿泊費", "医療代", "GYM代", "理容費", "嗜好品", "養育費", "miki", "YOU", "YOROZ", "POPMART", "DMM", "TIKTOK", "経費（川越）", "経費（南千住）", "経費（沖縄）", "経費（泉）", "ローン（川越）", "ローン（南千住）", "ローン（沖縄）", "ローン（目黒）", "ローン（名古屋）", "AIサブスク", "AI関連", "家電", "日用品", "衣服", "新聞", "書籍", "贈答品", "他"],
+    "出金": ["埼玉電気代", "埼玉水道代", "埼玉ガス代", "埼玉ネット代", "鶴川電気代", "鶴川水道代", "鶴川ガス代", "鶴川ネット代", "鶴川CATV代", "鶴川新聞代", "南千住電気代", "南千住水道代", "南千住ガス代", "南千住ネット代", "沖縄電気代", "沖縄水道代", "沖縄ガス代", "沖縄ネット代", "外食（家族）", "外食（一般）", "外食（不動産）", "外食（ON&OFF）", "外食（AI）", "外食（M＆M）", "食費", "食費（ラーメン）", "通信費（Docoo）", "通信費（au）", "通信費（楽天）", "通信費（SBTM）", "通信費（Nuro）", "車（駐車場代）", "車（ガソリン代）", "車（レンタカー代）", "車（高速代）", "保険代（火災）", "保険（生命）", "冠婚葬祭", "実家修繕", "お土産代", "交通費（旅費）", "交通費（一般）", "SUICAチャージ", "宿泊費", "医療代", "GYM代", "理容費", "嗜好品", "養育費", "miki", "YOU", "YOROZ", "POPMART", "DMM", "TIKTOK", "経費（川越）", "経費（南千住）", "経費（沖縄）", "経費（泉）", "ローン（川越）", "ローン（南千住）", "ローン（沖縄）", "ローン（目黒）", "ローン（名古屋）", "AIサブスク", "AI関連", "家電", "日用品", "衣服", "新聞", "書籍", "贈答品", "他"],
     "入金": ["給与", "賞与", "AI副業", "還付金", "お小遣い", "年金", "冠婚葬祭", "AI開発", "川越家賃", "南千住家賃", "目黒家賃", "沖縄Airbnb", "他"]
+  };
+
+  /** 履歴タブ：共通費まとめ（カテゴリのいずれかに一致する行だけ表示） */
+  const COMMON_FEE_GROUPS = {
+    "鶴川共通費": ["鶴川電気代", "鶴川ガス代", "鶴川水道代", "鶴川ネット代", "鶴川CATV代", "鶴川新聞代"],
+    "南千住共通費": ["南千住電気代", "南千住ガス代", "南千住水道代", "南千住ネット代"],
+    "沖縄共通費": ["沖縄電気代", "沖縄ガス代", "沖縄水道代", "沖縄ネット代"],
+    "埼玉共通費": ["埼玉電気代", "埼玉ガス代", "埼玉水道代", "埼玉ネット代"]
   };
 
   /**
@@ -243,6 +253,40 @@
     // 支払方法選択肢（履歴タブ用）
     const paySel = document.getElementById('filterPayment');
     paySel.innerHTML = '<option value="">全て</option><option value="creditCard">クレカ</option><option value="paypay">PayPay</option><option value="cash">現金</option>';
+
+    // 共通費まとめ（履歴タブ）
+    const commonSel = document.getElementById('filterCommonFee');
+    commonSel.innerHTML = '<option value="">共通費まとめ（指定なし）</option>';
+    Object.keys(COMMON_FEE_GROUPS).forEach(name => commonSel.add(new Option(name, name)));
+
+    // 締め期間：各月23日〜翌月22日（12/23〜1/22、1/23〜2/22 … 11/23〜12/22 を年ごと）
+    const periodSel = document.getElementById('filterPeriod23');
+    periodSel.innerHTML = '<option value="">締め期間（23日〜翌22日・指定なし）</option>';
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const periodItems = [];
+    for (let baseYear = 2024; baseYear <= 2030; baseYear++) {
+      for (let k = 0; k < 12; k++) {
+        let startStr, endStr;
+        if (k === 0) {
+          startStr = `${baseYear}-12-23`;
+          endStr = `${baseYear + 1}-01-22`;
+        } else {
+          const y = baseYear + 1;
+          startStr = `${y}-${pad2(k)}-23`;
+          endStr = `${y}-${pad2(k + 1)}-22`;
+        }
+        const sm = parseInt(startStr.slice(5, 7), 10);
+        const sd = parseInt(startStr.slice(8, 10), 10);
+        const em = parseInt(endStr.slice(5, 7), 10);
+        const ed = parseInt(endStr.slice(8, 10), 10);
+        const label = `${sm}/${sd}〜${em}/${ed}（${startStr.replace(/-/g, '/')}〜${endStr.replace(/-/g, '/')}）`;
+        periodItems.push({ startStr, endStr, label });
+      }
+    }
+    periodItems.sort((a, b) => b.endStr.localeCompare(a.endStr));
+    periodItems.forEach(({ startStr, endStr, label }) => {
+      periodSel.add(new Option(label, `${startStr}|${endStr}`));
+    });
   }
 
   /**
@@ -287,12 +331,26 @@
   function applyFilters() {
     const u = document.getElementById('filterUser').value;
     const c = document.getElementById('filterCategory').value;
+    const commonKey = document.getElementById('filterCommonFee').value;
+    const commonSet = commonKey ? new Set(COMMON_FEE_GROUPS[commonKey]) : null;
     const y = document.getElementById('filterYear').value;
     const m = document.getElementById('filterMonth').value;
+    const periodVal = document.getElementById('filterPeriod23').value;
+    let periodStart, periodEnd;
+    if (periodVal) {
+      const parts = periodVal.split('|');
+      periodStart = parts[0];
+      periodEnd = parts[1];
+    }
     const payment = document.getElementById('filterPayment').value;
     const filtered = allData.filter(d => {
       const dt = new Date(d.date);
-      const matchBase = (!u || d.lineId === u) && (!c || d.category === c) && (!y || dt.getFullYear() == y) && (!m || (dt.getMonth()+1) == m);
+      const dStr = (d.date != null ? String(d.date) : '').slice(0, 10);
+      const matchCommon = !commonSet || commonSet.has(d.category);
+      const matchDate = periodStart
+        ? (dStr >= periodStart && dStr <= periodEnd)
+        : ((!y || dt.getFullYear() == y) && (!m || (dt.getMonth()+1) == m));
+      const matchBase = (!u || d.lineId === u) && (!c || d.category === c) && matchDate && matchCommon;
       if (!payment) return matchBase;
       if (d.type === "入金") return false; // 支払方法フィルタ時は出金のみ
       if (payment === "creditCard") return matchBase && d.creditCard === true;

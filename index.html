@@ -122,6 +122,13 @@
   <div id="pageList" class="page">
     <div class="filter-box"><div class="filter-grid">
       <select id="filterUser" onchange="applyFilters()"><option value="">全員</option></select>
+      <select id="filterListMode" onchange="applyFilters()">
+        <option value="">入出金（日付・新しい順）</option>
+        <option value="出金">出金のみ</option>
+        <option value="入金">入金のみ</option>
+        <option value="出金先">すべて・出金を先に</option>
+        <option value="入金先">すべて・入金を先に</option>
+      </select>
       <select id="filterCategory" onchange="applyFilters()"><option value="">全分類</option></select>
       <select id="filterCommonFee" onchange="applyFilters()"><option value="">共通費まとめ（指定なし）</option></select>
       <select id="filterYear" onchange="applyFilters()"><option value="">年</option></select>
@@ -343,14 +350,16 @@
       periodEnd = parts[1];
     }
     const payment = document.getElementById('filterPayment').value;
+    const listMode = document.getElementById('filterListMode').value;
     const filtered = allData.filter(d => {
       const dt = new Date(d.date);
       const dStr = (d.date != null ? String(d.date) : '').slice(0, 10);
+      const matchType = listMode === '出金' ? d.type === '出金' : listMode === '入金' ? d.type === '入金' : true;
       const matchCommon = !commonSet || commonSet.has(d.category);
       const matchDate = periodStart
         ? (dStr >= periodStart && dStr <= periodEnd)
         : ((!y || dt.getFullYear() == y) && (!m || (dt.getMonth()+1) == m));
-      const matchBase = (!u || d.lineId === u) && (!c || d.category === c) && matchDate && matchCommon;
+      const matchBase = (!u || d.lineId === u) && (!c || d.category === c) && matchDate && matchCommon && matchType;
       if (!payment) return matchBase;
       if (d.type === "入金") return false; // 支払方法フィルタ時は出金のみ
       if (payment === "creditCard") return matchBase && d.creditCard === true;
@@ -358,6 +367,25 @@
       if (payment === "cash") return matchBase && !d.creditCard && !d.paypay;
       return matchBase;
     });
+    const dateKey = (d) => (d.date != null ? String(d.date) : '').slice(0, 10);
+    const cmpDateDesc = (a, b) => dateKey(b).localeCompare(dateKey(a));
+    if (listMode === '出金先') {
+      filtered.sort((a, b) => {
+        const oa = a.type === '出金' ? 0 : 1;
+        const ob = b.type === '出金' ? 0 : 1;
+        if (oa !== ob) return oa - ob;
+        return cmpDateDesc(a, b);
+      });
+    } else if (listMode === '入金先') {
+      filtered.sort((a, b) => {
+        const oa = a.type === '入金' ? 0 : 1;
+        const ob = b.type === '入金' ? 0 : 1;
+        if (oa !== ob) return oa - ob;
+        return cmpDateDesc(a, b);
+      });
+    } else {
+      filtered.sort(cmpDateDesc);
+    }
     renderList(filtered);
   }
 

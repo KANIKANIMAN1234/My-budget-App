@@ -14,6 +14,7 @@
     /* メニュータブ */
     .tab-menu, .type-menu { display: flex; background: #eee; border-radius: 10px; padding: 4px; margin-bottom: 15px; }
     .tab, .type-btn { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-radius: 8px; color: #666; font-size: 14px; }
+    .tab-menu > .tab { padding: 8px 4px; font-size: 12px; }
     .tab.active { background: white; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .type-btn.active.expense { background: white; color: #d9534f; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .type-btn.active.income { background: white; color: var(--line-blue); font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -81,6 +82,24 @@
     .chart-section { margin-top: 20px; text-align: center; }
     .chart-title { font-size: 14px; font-weight: bold; color: #666; margin-bottom: 10px; }
     .chart-container { position: relative; width: 100%; margin: auto; margin-bottom: 30px; }
+
+    /* クレカ消込 */
+    .credit-hint { color:#666; font-size:12px; line-height:1.5; margin:0 0 12px; }
+    .credit-meta { font-size:13px; color:#555; margin-bottom:10px; font-weight:bold; }
+    .credit-row { border-bottom:1px solid #eee; padding:10px 0; font-size:13px; }
+    .credit-row-top { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+    .credit-row-info { flex:1; min-width:0; }
+    .credit-date-amt { font-weight:bold; color:#333; }
+    .credit-shop { color:#555; word-break:break-all; font-size:12px; margin-top:4px; }
+    .credit-actions { display:flex; flex-wrap:wrap; gap:6px; align-items:center; flex-shrink:0; }
+    .credit-badge { font-size:11px; font-weight:bold; padding:3px 8px; border-radius:4px; white-space:nowrap; }
+    .credit-badge.ok { background:#e8f5e9; color:#2e7d32; }
+    .credit-badge.ng { background:#fff3e0; color:#e65100; }
+    .btn-credit { font-size:11px; padding:6px 10px; border-radius:6px; border:none; cursor:pointer; font-weight:bold; }
+    .btn-credit:disabled { background:#ddd; color:#888; cursor:default; }
+    .btn-credit-confirm { background:var(--line-green); color:#fff; }
+    .btn-credit-import { background:var(--line-blue); color:#fff; }
+    .btn-credit-done { background:#e0e0e0; color:#616161; cursor:default; }
   </style>
 </head>
 <body>
@@ -90,6 +109,7 @@
     <div class="tab active" onclick="showPage('input')">入力</div>
     <div class="tab" onclick="showPage('list')">履歴</div>
     <div class="tab" onclick="showPage('summary')">サマリー</div>
+    <div class="tab" onclick="showPage('credit')">クレカ消込</div>
   </div>
 
   <div id="pageInput" class="page active">
@@ -163,6 +183,15 @@
       </div>
     </div>
   </div>
+
+  <div id="pageCredit" class="page">
+    <div class="chart-title" style="margin-bottom:10px;">クレカ消込</div>
+    <p class="credit-hint">カード会社の利用明細CSVを選ぶと、登録済みの<strong>クレカ</strong>出金（日付・金額が一致）を照合します。文字化けする場合は、Excel等でUTF-8に保存し直してから読み込んでください。</p>
+    <label>明細CSV</label>
+    <input type="file" id="creditCsvInput" accept=".csv,text/csv" onchange="handleCreditCsvFile(this)">
+    <div id="creditReconcileMeta" class="credit-meta"></div>
+    <div id="creditReconcileList"></div>
+  </div>
 </div>
 
 <script>
@@ -175,6 +204,7 @@
   let myChart = null;
   let myBarChart = null;
   let userList = []; // ユーザーリスト（LINE IDと名前のマッピング用）
+  let creditCsvParsed = []; // クレカCSVから解析した行 { date, amount, shop }
   const categories = {
     "出金": ["埼玉電気代", "埼玉水道代", "埼玉ガス代", "埼玉ネット代", "鶴川電気代", "鶴川水道代", "鶴川ガス代", "鶴川ネット代", "鶴川CATV代", "鶴川新聞代", "南千住電気代", "南千住水道代", "南千住ガス代", "南千住ネット代", "沖縄電気代", "沖縄水道代", "沖縄ガス代", "沖縄ネット代", "外食（家族）", "外食（一般）", "外食（不動産）", "外食（ON&OFF）", "外食（AI）", "外食（M＆M）", "食費", "食費（ラーメン）", "通信費（Docoo）", "通信費（au）", "通信費（楽天）", "通信費（SBTM）", "通信費（Nuro）", "車（駐車場代）", "車（ガソリン代）", "車（レンタカー代）", "車（高速代）", "保険代（火災）", "保険（生命）", "冠婚葬祭", "実家修繕", "お土産代", "交通費（旅費）", "交通費（一般）", "SUICAチャージ", "宿泊費", "医療代", "GYM代", "理容費", "嗜好品", "養育費", "miki", "YOU", "YOROZ", "POPMART", "DMM", "TIKTOK", "経費（川越）", "経費（南千住）", "経費（沖縄）", "経費（泉）", "ローン（川越）", "ローン（南千住）", "ローン（沖縄）", "ローン（目黒）", "ローン（名古屋）", "AIサブスク", "AI関連", "家電", "日用品", "衣服", "新聞", "書籍", "贈答品", "他"],
     "入金": ["給与", "賞与", "AI副業", "還付金", "お小遣い", "年金", "冠婚葬祭", "AI開発", "川越家賃", "南千住家賃", "目黒家賃", "沖縄Airbnb", "他"]
@@ -321,8 +351,10 @@
   function showPage(p) {
     document.querySelectorAll('.page, .tab').forEach(el => el.classList.remove('active'));
     document.getElementById('page' + p.charAt(0).toUpperCase() + p.slice(1)).classList.add('active');
-    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (p==='input'&&i===0)||(p==='list'&&i===1)||(p==='summary'&&i===2)));
-    if (p !== 'input') fetchAllData(p);
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active',
+      (p === 'input' && i === 0) || (p === 'list' && i === 1) || (p === 'summary' && i === 2) || (p === 'credit' && i === 3)));
+    if (p === 'credit') fetchAllData('credit');
+    else if (p !== 'input') fetchAllData(p);
   }
 
   /**
@@ -333,6 +365,186 @@
     allData = res.result || [];
     if (mode === 'list') applyFilters();
     if (mode === 'summary') applySummaryFilters();
+    if (mode === 'credit' && creditCsvParsed.length) reconcileAndRenderCredit();
+  }
+
+  function decodeCreditCsvBuffer(buffer) {
+    const u8 = new Uint8Array(buffer);
+    const tryDecode = (label) => {
+      try { return new TextDecoder(label).decode(u8); } catch (e) { return null; }
+    };
+    const utf8 = tryDecode("utf-8");
+    if (utf8 && /\d{4}\/\d{1,2}\/\d{1,2}/.test(utf8) && !utf8.includes("\ufffd")) return utf8;
+    const sjis = tryDecode("shift_jis") || tryDecode("windows-31j");
+    if (sjis) return sjis;
+    return utf8 || new TextDecoder("utf-8", { fatal: false }).decode(u8);
+  }
+
+  function parseCsvLines(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.length > 0);
+    return lines.map(line => {
+      const cells = [];
+      let cur = "";
+      let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') {
+          if (inQ && line[i + 1] === '"') { cur += '"'; i++; continue; }
+          inQ = !inQ;
+          continue;
+        }
+        if (!inQ && c === ",") {
+          cells.push(cur);
+          cur = "";
+          continue;
+        }
+        cur += c;
+      }
+      cells.push(cur);
+      return cells;
+    });
+  }
+
+  function normalizeCardDate(s) {
+    const m = String(s || "").trim().match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if (!m) return null;
+    return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  }
+
+  function parseCardCsvRows(text) {
+    const rows = parseCsvLines(text);
+    let start = 0;
+    if (rows.length && !/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(String(rows[0][0] || "").trim())) start = 1;
+    const out = [];
+    for (let i = start; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r.length) continue;
+      const dateNorm = normalizeCardDate(r[0]);
+      const amountCell = r[3] != null ? String(r[3]) : "";
+      const amountStr = amountCell.replace(/,/g, "").replace(/"/g, "").trim();
+      if (!dateNorm || amountStr === "") continue;
+      const amount = Number(amountStr);
+      if (Number.isNaN(amount)) continue;
+      const shop = String(r[2] != null ? r[2] : "").replace(/^"|"$/g, "").trim() || "明細";
+      out.push({ date: dateNorm, amount, shop });
+    }
+    return out;
+  }
+
+  function handleCreditCsvFile(input) {
+    const file = input.files[0];
+    if (!file) {
+      creditCsvParsed = [];
+      reconcileAndRenderCredit();
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const text = decodeCreditCsvBuffer(e.target.result);
+      creditCsvParsed = parseCardCsvRows(text);
+      await fetchAllData("credit");
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function reconcileAndRenderCredit() {
+    const container = document.getElementById("creditReconcileList");
+    const meta = document.getElementById("creditReconcileMeta");
+    if (!container || !meta) return;
+    container.innerHTML = "";
+    if (!creditCsvParsed.length) {
+      meta.textContent = allData.length ? "明細CSVを選択してください" : "";
+      return;
+    }
+    const appPool = allData.filter(d => d.type === "出金" && d.creditCard === true);
+    const used = new Set();
+    const lines = creditCsvParsed.map(csv => {
+      const match = appPool.find(d => d.sheetRow != null && !used.has(d.sheetRow) && d.date === csv.date && Number(d.amount) === Number(csv.amount));
+      if (match) used.add(match.sheetRow);
+      return { csv, match };
+    });
+    const nOk = lines.filter(x => x.match).length;
+    meta.textContent = `CSV ${lines.length} 件 / 合致 ${nOk} / 差分あり ${lines.length - nOk}`;
+    lines.forEach(({ csv, match }) => {
+      const div = document.createElement("div");
+      div.className = "credit-row";
+      const top = document.createElement("div");
+      top.className = "credit-row-top";
+      const info = document.createElement("div");
+      info.className = "credit-row-info";
+      const da = document.createElement("div");
+      da.className = "credit-date-amt";
+      da.textContent = `${csv.date}  ¥${csv.amount.toLocaleString()}`;
+      const shopEl = document.createElement("div");
+      shopEl.className = "credit-shop";
+      shopEl.textContent = csv.shop;
+      info.appendChild(da);
+      info.appendChild(shopEl);
+      const actions = document.createElement("div");
+      actions.className = "credit-actions";
+      const badge = document.createElement("span");
+      badge.className = "credit-badge " + (match ? "ok" : "ng");
+      badge.textContent = match ? "合致" : "差分あり";
+      actions.appendChild(badge);
+      if (match) {
+        if (match.creditCardConfirmed) {
+          const sp = document.createElement("span");
+          sp.className = "btn-credit btn-credit-done";
+          sp.textContent = "確認済";
+          actions.appendChild(sp);
+        } else {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn-credit btn-credit-confirm";
+          btn.textContent = "確認済";
+          btn.onclick = () => creditMarkConfirmed(match.sheetRow, btn);
+          actions.appendChild(btn);
+        }
+      } else {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn-credit btn-credit-import";
+        btn.textContent = "取込";
+        btn.onclick = () => creditImportRow(csv, btn);
+        actions.appendChild(btn);
+      }
+      top.appendChild(info);
+      top.appendChild(actions);
+      div.appendChild(top);
+      container.appendChild(div);
+    });
+  }
+
+  async function creditMarkConfirmed(sheetRow, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = "…"; }
+    try {
+      const res = await callGas("markCreditConfirmed", { rowIndex: sheetRow });
+      if (res.status !== "success") throw new Error();
+      await fetchAllData("credit");
+    } catch (e) {
+      alert("確認済の記録に失敗しました。GASを最新版にデプロイしたか確認してください。");
+      if (btn) { btn.disabled = false; btn.textContent = "確認済"; }
+    }
+  }
+
+  async function creditImportRow(csv, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = "…"; }
+    try {
+      const p = await liff.getProfile();
+      const res = await callGas("importCreditTransaction", {
+        lineId: p.userId,
+        userName: p.displayName,
+        date: csv.date,
+        amount: csv.amount,
+        shop: csv.shop,
+        category: "他"
+      });
+      if (res.status !== "success") throw new Error();
+      await fetchAllData("credit");
+    } catch (e) {
+      alert("取込に失敗しました。GASを最新版にデプロイしたか確認してください。");
+      if (btn) { btn.disabled = false; btn.textContent = "取込"; }
+    }
   }
 
   function applyFilters() {

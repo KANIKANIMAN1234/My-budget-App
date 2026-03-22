@@ -1,6 +1,6 @@
 /**
- * 家族収支管理アプリ - API Backend (v6.2.0)
- * LINE IDベースのフィルタリング対応版 / クレジットカードフラグ対応
+ * 家族収支管理アプリ - API Backend (v6.6.0)
+ * LINE IDベースのフィルタリング / クレカフラグ / クレカ確認済(L列) / 明細取込
  */
 
 const SPREADSHEET_ID = "1GLYgC7LVp5VUlH_4QpuUboEnBNtynYojywTF_-ulw8k";
@@ -20,6 +20,10 @@ function doPost(e) {
       result = getListData();
     } else if (action === "getUsers") {
       result = getUserList();
+    } else if (action === "markCreditConfirmed") {
+      result = markCreditConfirmed(params.data);
+    } else if (action === "importCreditTransaction") {
+      result = importCreditTransaction(params.data);
     }
 
     return ContentService.createTextOutput(JSON.stringify({ status: "success", result: result }))
@@ -54,7 +58,7 @@ function uploadData(payload) {
   const creditCard = (payload.type === "出金" && payload.creditCard === true) ? "○" : "";
   const paypay = (payload.type === "出金" && payload.paypay === true) ? "○" : "";
 
-  // スプレッドシートへの書き込み (I列:収支タイプ / J列:クレカ / K列:PayPay)
+  // スプレッドシートへの書き込み (I:収支 / J:クレカ / K:PayPay / L:クレカ確認済)
   dataSheet.appendRow([
     new Date(),
     payload.date,
@@ -64,9 +68,10 @@ function uploadData(payload) {
     payload.shop,
     fileUrls,
     payload.lineId,
-    payload.type,     // I列: 出金 or 入金
-    creditCard,       // J列: クレジットカード支払いフラグ (○ or 空)
-    paypay            // K列: PayPay支払いフラグ (○ or 空)
+    payload.type,
+    creditCard,
+    paypay,
+    ""
   ]);
   return "Success";
 }
@@ -76,20 +81,59 @@ function getListData() {
   const sheet = ss.getSheetByName('data');
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
-  
+
   const values = sheet.getDataRange().getValues();
-  return values.slice(1).reverse().map(row => ({
-    date: row[1] instanceof Date ? Utilities.formatDate(row[1], "JST", "yyyy-MM-dd") : row[1],
-    userName: row[2] || "",
-    amount: Number(row[3]) || 0,
-    category: row[4] || "",
-    shop: row[5] || "",
-    imageUrls: row[6] ? row[6].split(",") : [],
-    lineId: row[7] || "",
-    type: row[8] || "出金",
-    creditCard: row[9] === "○",  // J列: クレジットカードフラグ
-    paypay: row[10] === "○"      // K列: PayPayフラグ
-  }));
+  const out = [];
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    const sheetRow = r + 1;
+    out.push({
+      sheetRow: sheetRow,
+      date: row[1] instanceof Date ? Utilities.formatDate(row[1], "JST", "yyyy-MM-dd") : String(row[1] || ""),
+      userName: row[2] || "",
+      amount: Number(row[3]) || 0,
+      category: row[4] || "",
+      shop: row[5] || "",
+      imageUrls: row[6] ? String(row[6]).split(",") : [],
+      lineId: row[7] || "",
+      type: row[8] || "出金",
+      creditCard: row[9] === "○",
+      paypay: row[10] === "○",
+      creditCardConfirmed: row[11] === "○"
+    });
+  }
+  return out.reverse();
+}
+
+/** L列にクレカ明細「確認済」(○)を記入（sheetRow はシートの行番号・1始まり） */
+function markCreditConfirmed(data) {
+  const rowIndex = Number(data.rowIndex);
+  if (!rowIndex || rowIndex < 2) throw new Error("invalid rowIndex");
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName("data");
+  sheet.getRange(rowIndex, 12).setValue("○");
+  return "OK";
+}
+
+/** CSV明細から出金＋クレカとして data に1行追加 */
+function importCreditTransaction(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName("data");
+  sheet.appendRow([
+    new Date(),
+    data.date,
+    data.userName,
+    Number(data.amount),
+    data.category || "他",
+    data.shop || "クレカ明細取込",
+    "画像なし",
+    data.lineId,
+    "出金",
+    "○",
+    "",
+    ""
+  ]);
+  return "OK";
 }
 
 function checkAndRegisterUser(lineData) {
@@ -115,6 +159,6 @@ function getUserList() {
   }));
 }
 
-function doGet() { 
-  return ContentService.createTextOutput("GAS API v6.2.0 active."); 
+function doGet() {
+  return ContentService.createTextOutput("GAS API v6.6.0 active.");
 }

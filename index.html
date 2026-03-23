@@ -101,9 +101,7 @@
     .btn-credit-import { background:var(--line-blue); color:#fff; }
     .btn-credit-done { background:#e0e0e0; color:#616161; cursor:default; }
     .credit-cat-picks { display:flex; gap:6px; flex-wrap:wrap; align-items:center; flex:1 1 200px; max-width:100%; }
-    .credit-sel-exp, .credit-sel-inc { flex:1; min-width:100px; margin-bottom:0; font-size:12px; padding:8px 6px; border-radius:6px; box-sizing:border-box; }
-    .credit-sel-exp { border:2px solid #ef9a9a; background:#fff8f8; }
-    .credit-sel-inc { border:2px solid #90caf9; background:#f5f9ff; }
+    .credit-sel-exp { flex:1; min-width:100px; margin-bottom:0; font-size:12px; padding:8px 6px; border-radius:6px; box-sizing:border-box; border:2px solid #ef9a9a; background:#fff8f8; }
   </style>
 </head>
 <body>
@@ -209,9 +207,15 @@
   let myBarChart = null;
   let userList = []; // ユーザーリスト（LINE IDと名前のマッピング用）
   let creditCsvParsed = []; // クレカCSVから解析した行 { date, amount, shop }
+
+  /** 出金カテゴリ（入力タブの出金プルダウンとクレカ消込の出金プルダウンで同一配列を共有） */
+  const EXPENSE_CATEGORY_LIST = ["埼玉電気代", "埼玉水道代", "埼玉ガス代", "埼玉ネット代", "鶴川電気代", "鶴川水道代", "鶴川ガス代", "鶴川ネット代", "鶴川CATV代", "鶴川新聞代", "南千住電気代", "南千住水道代", "南千住ガス代", "南千住ネット代", "沖縄電気代", "沖縄水道代", "沖縄ガス代", "沖縄ネット代", "川越電気代", "外食（家族）", "外食（一般）", "外食（不動産）", "外食（ON&OFF）", "外食（AI）", "外食（M＆M）", "外食（UBER）", "食費", "食費（ラーメン）", "通信費（Docoo）", "通信費（au）", "通信費（楽天）", "通信費（SBTM）", "通信費（Nuro）", "車（駐車場代）", "車（ガソリン代）", "車（レンタカー代）", "車（高速代）", "保険代（火災）", "保険（生命）", "冠婚葬祭", "実家修繕", "お土産代", "交通費（旅費）", "交通費（一般）", "SUICAチャージ", "宿泊費", "医療代", "GYM代", "理容費", "嗜好品", "養育費", "miki", "YOU", "YOROZ", "POPMART", "DMM", "TIKTOK", "経費（川越）", "経費（南千住）", "経費（沖縄）", "経費（泉）", "ローン（川越）", "ローン（南千住）", "ローン（沖縄）", "ローン（目黒）", "ローン（名古屋）", "AIサブスク", "AI関連", "家電", "日用品", "衣服", "新聞", "書籍", "贈答品", "他"];
+  /** 入金カテゴリ（入力タブの入金プルダウン） */
+  const INCOME_CATEGORY_LIST = ["給与", "賞与", "AI副業", "還付金", "お小遣い", "年金", "冠婚葬祭", "AI開発", "川越家賃", "南千住家賃", "目黒家賃", "沖縄Airbnb", "他"];
+
   const categories = {
-    "出金": ["埼玉電気代", "埼玉水道代", "埼玉ガス代", "埼玉ネット代", "鶴川電気代", "鶴川水道代", "鶴川ガス代", "鶴川ネット代", "鶴川CATV代", "鶴川新聞代", "南千住電気代", "南千住水道代", "南千住ガス代", "南千住ネット代", "沖縄電気代", "沖縄水道代", "沖縄ガス代", "沖縄ネット代", "外食（家族）", "外食（一般）", "外食（不動産）", "外食（ON&OFF）", "外食（AI）", "外食（M＆M）", "外食（UBER）", "食費", "食費（ラーメン）", "通信費（Docoo）", "通信費（au）", "通信費（楽天）", "通信費（SBTM）", "通信費（Nuro）", "車（駐車場代）", "車（ガソリン代）", "車（レンタカー代）", "車（高速代）", "保険代（火災）", "保険（生命）", "冠婚葬祭", "実家修繕", "お土産代", "交通費（旅費）", "交通費（一般）", "SUICAチャージ", "宿泊費", "医療代", "GYM代", "理容費", "嗜好品", "養育費", "miki", "YOU", "YOROZ", "POPMART", "DMM", "TIKTOK", "経費（川越）", "経費（南千住）", "経費（沖縄）", "経費（泉）", "ローン（川越）", "ローン（南千住）", "ローン（沖縄）", "ローン（目黒）", "ローン（名古屋）", "AIサブスク", "AI関連", "家電", "日用品", "衣服", "新聞", "書籍", "贈答品", "他"],
-    "入金": ["給与", "賞与", "AI副業", "還付金", "お小遣い", "年金", "冠婚葬祭", "AI開発", "川越家賃", "南千住家賃", "目黒家賃", "沖縄Airbnb", "他"]
+    "出金": EXPENSE_CATEGORY_LIST,
+    "入金": INCOME_CATEGORY_LIST
   };
 
   /** 履歴タブ：共通費まとめ（カテゴリのいずれかに一致する行だけ表示） */
@@ -511,21 +515,13 @@
         selExp.className = "credit-sel-exp";
         selExp.title = "出金カテゴリ（履歴と同じ）";
         selExp.add(new Option("出金カテゴリ", ""));
-        categories["出金"].forEach(c => selExp.add(new Option(c, c)));
-        const selInc = document.createElement("select");
-        selInc.className = "credit-sel-inc";
-        selInc.title = "入金カテゴリ（履歴と同じ）";
-        selInc.add(new Option("入金カテゴリ", ""));
-        categories["入金"].forEach(c => selInc.add(new Option(c, c)));
-        selExp.addEventListener("change", () => { if (selExp.value) selInc.selectedIndex = 0; });
-        selInc.addEventListener("change", () => { if (selInc.value) selExp.selectedIndex = 0; });
+        EXPENSE_CATEGORY_LIST.forEach(c => selExp.add(new Option(c, c)));
         picks.appendChild(selExp);
-        picks.appendChild(selInc);
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "btn-credit btn-credit-import";
         btn.textContent = "取込";
-        btn.onclick = () => creditImportRow(csv, btn, selExp, selInc);
+        btn.onclick = () => creditImportRow(csv, btn, selExp);
         actions.appendChild(btn);
         top.appendChild(info);
         top.appendChild(picks);
@@ -551,21 +547,12 @@
     }
   }
 
-  async function creditImportRow(csv, btn, selExp, selInc) {
-    const vExp = selExp && selExp.value;
-    const vInc = selInc && selInc.value;
-    if (!vExp && !vInc) {
-      alert("出金カテゴリまたは入金カテゴリのどちらかを選んでください。");
+  async function creditImportRow(csv, btn, selExp) {
+    const category = selExp && selExp.value;
+    if (!category) {
+      alert("出金カテゴリを選んでください。");
       return;
     }
-    if (vExp && vInc) {
-      alert("出金と入金のカテゴリはどちらか一方だけ選んでください。");
-      return;
-    }
-    const type = vExp ? "出金" : "入金";
-    const category = vExp || vInc;
-    let amount = Number(csv.amount);
-    if (type === "入金" && amount < 0) amount = Math.abs(amount);
     if (btn) { btn.disabled = true; btn.textContent = "…"; }
     try {
       const p = await liff.getProfile();
@@ -573,10 +560,10 @@
         lineId: p.userId,
         userName: p.displayName,
         date: csv.date,
-        amount: amount,
+        amount: Number(csv.amount),
         shop: csv.shop,
         category: category,
-        type: type
+        type: "出金"
       });
       if (res.status !== "success") throw new Error();
       await fetchAllData("credit");

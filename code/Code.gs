@@ -1,5 +1,5 @@
 /**
- * 家族収支管理アプリ - API Backend (v6.6.0)
+ * 家族収支管理アプリ - API Backend (v6.7.0)
  * LINE IDベースのフィルタリング / クレカフラグ / クレカ確認済(L列) / 明細取込
  */
 
@@ -115,22 +115,27 @@ function markCreditConfirmed(data) {
   return "OK";
 }
 
-/** CSV明細から出金＋クレカとして data に1行追加 */
+/** CSV明細から data に1行追加（type: 出金 or 入金、E列カテゴリ、I列収支） */
 function importCreditTransaction(data) {
+  const type = data.type === "入金" ? "入金" : "出金";
+  var amt = Number(data.amount);
+  if (type === "入金" && amt < 0) amt = Math.abs(amt);
+  const creditCard = type === "出金" ? "○" : "";
+  const paypay = "";
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sheet = ss.getSheetByName("data");
   sheet.appendRow([
     new Date(),
     data.date,
     data.userName,
-    Number(data.amount),
+    amt,
     data.category || "他",
     data.shop || "クレカ明細取込",
     "画像なし",
     data.lineId,
-    "出金",
-    "○",
-    "",
+    type,
+    creditCard,
+    paypay,
     ""
   ]);
   return "OK";
@@ -160,5 +165,5 @@ function getUserList() {
 }
 
 function doGet() {
-  return ContentService.createTextOutput("GAS API v6.6.0 active.");
+  return ContentService.createTextOutput("GAS API v6.7.0 active.");
 }

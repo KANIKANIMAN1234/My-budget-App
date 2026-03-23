@@ -100,6 +100,10 @@
     .btn-credit-confirm { background:var(--line-green); color:#fff; }
     .btn-credit-import { background:var(--line-blue); color:#fff; }
     .btn-credit-done { background:#e0e0e0; color:#616161; cursor:default; }
+    .credit-cat-picks { display:flex; gap:6px; flex-wrap:wrap; align-items:center; flex:1 1 200px; max-width:100%; }
+    .credit-sel-exp, .credit-sel-inc { flex:1; min-width:100px; margin-bottom:0; font-size:12px; padding:8px 6px; border-radius:6px; box-sizing:border-box; }
+    .credit-sel-exp { border:2px solid #ef9a9a; background:#fff8f8; }
+    .credit-sel-inc { border:2px solid #90caf9; background:#f5f9ff; }
   </style>
 </head>
 <body>
@@ -501,14 +505,34 @@
           actions.appendChild(btn);
         }
       } else {
+        const picks = document.createElement("div");
+        picks.className = "credit-cat-picks";
+        const selExp = document.createElement("select");
+        selExp.className = "credit-sel-exp";
+        selExp.title = "出金カテゴリ（履歴と同じ）";
+        selExp.add(new Option("出金カテゴリ", ""));
+        categories["出金"].forEach(c => selExp.add(new Option(c, c)));
+        const selInc = document.createElement("select");
+        selInc.className = "credit-sel-inc";
+        selInc.title = "入金カテゴリ（履歴と同じ）";
+        selInc.add(new Option("入金カテゴリ", ""));
+        categories["入金"].forEach(c => selInc.add(new Option(c, c)));
+        selExp.addEventListener("change", () => { if (selExp.value) selInc.selectedIndex = 0; });
+        selInc.addEventListener("change", () => { if (selInc.value) selExp.selectedIndex = 0; });
+        picks.appendChild(selExp);
+        picks.appendChild(selInc);
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "btn-credit btn-credit-import";
         btn.textContent = "取込";
-        btn.onclick = () => creditImportRow(csv, btn);
+        btn.onclick = () => creditImportRow(csv, btn, selExp, selInc);
         actions.appendChild(btn);
+        top.appendChild(info);
+        top.appendChild(picks);
       }
-      top.appendChild(info);
+      if (match) {
+        top.appendChild(info);
+      }
       top.appendChild(actions);
       div.appendChild(top);
       container.appendChild(div);
@@ -527,7 +551,21 @@
     }
   }
 
-  async function creditImportRow(csv, btn) {
+  async function creditImportRow(csv, btn, selExp, selInc) {
+    const vExp = selExp && selExp.value;
+    const vInc = selInc && selInc.value;
+    if (!vExp && !vInc) {
+      alert("出金カテゴリまたは入金カテゴリのどちらかを選んでください。");
+      return;
+    }
+    if (vExp && vInc) {
+      alert("出金と入金のカテゴリはどちらか一方だけ選んでください。");
+      return;
+    }
+    const type = vExp ? "出金" : "入金";
+    const category = vExp || vInc;
+    let amount = Number(csv.amount);
+    if (type === "入金" && amount < 0) amount = Math.abs(amount);
     if (btn) { btn.disabled = true; btn.textContent = "…"; }
     try {
       const p = await liff.getProfile();
@@ -535,9 +573,10 @@
         lineId: p.userId,
         userName: p.displayName,
         date: csv.date,
-        amount: csv.amount,
+        amount: amount,
         shop: csv.shop,
-        category: "他"
+        category: category,
+        type: type
       });
       if (res.status !== "success") throw new Error();
       await fetchAllData("credit");

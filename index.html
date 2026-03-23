@@ -83,6 +83,27 @@
     .chart-title { font-size: 14px; font-weight: bold; color: #666; margin-bottom: 10px; }
     .chart-container { position: relative; width: 100%; margin: auto; margin-bottom: 30px; }
 
+    /* サマリータブ：フィルタ・チャートを中央配置 */
+    #pageSummary .filter-box {
+      display: flex;
+      justify-content: center;
+    }
+    #pageSummary .filter-box .filter-grid {
+      width: 100%;
+      max-width: 380px;
+      margin: 0 auto;
+    }
+    #pageSummary .chart-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #pageSummary .chart-container {
+      max-width: 340px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
     /* クレカ消込 */
     .credit-hint { color:#666; font-size:12px; line-height:1.5; margin:0 0 12px; }
     .credit-meta { font-size:13px; color:#555; margin-bottom:10px; font-weight:bold; }
@@ -724,15 +745,20 @@
       options: {
         cutout: '65%',
         plugins: {
-          legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+          legend: { display: true, position: 'bottom', align: 'center', labels: { boxWidth: 12, font: { size: 10 } } },
           tooltip: { callbacks: { label: (c) => `${c.label}: ¥${c.raw.toLocaleString()} (${((c.raw/expTotal)*100).toFixed(1)}%)` } }
         }
       },
       plugins: [{
         id: 'centerText',
         afterDatasetsDraw(chart) {
-          const { ctx } = chart; ctx.save();
-          const x = chart.getDatasetMeta(0).data[0].x, y = chart.getDatasetMeta(0).data[0].y;
+          const { ctx, chartArea } = chart;
+          ctx.save();
+          const meta = chart.getDatasetMeta(0);
+          const arc0 = meta.data[0];
+          const x = arc0 ? arc0.x : chartArea ? (chartArea.left + chartArea.right) / 2 : 0;
+          const y = arc0 ? arc0.y : chartArea ? (chartArea.top + chartArea.bottom) / 2 : 0;
+          if (!arc0 && !chartArea) { ctx.restore(); return; }
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#333';
           ctx.fillText(name + (cat ? " ["+cat+"]" : ""), x, y - 10);
